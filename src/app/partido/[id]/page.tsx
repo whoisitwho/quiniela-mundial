@@ -22,8 +22,10 @@ export default async function MatchPage({
   const match = await getMatch(params.id);
   if (!match) notFound();
 
-  const preds = await getMatchPredictions(params.id);
   const done = isFinished(match);
+  const started = new Date(match.kickoff_at).getTime() <= Date.now();
+  // Las predicciones se revelan SOLO cuando el partido ya inició.
+  const preds = started ? await getMatchPredictions(params.id) : [];
 
   return (
     <div className="space-y-6">
@@ -31,7 +33,6 @@ export default async function MatchPage({
         ← Partidos
       </Link>
 
-      {/* Marcador */}
       <section className="rounded-2xl border border-line/40 bg-field/50 p-6 text-center">
         <p className="text-xs uppercase tracking-widest text-amber/80">
           {match.stage}
@@ -52,14 +53,18 @@ export default async function MatchPage({
         </p>
       </section>
 
-      {/* Predicciones */}
       <section>
         <h2 className="mb-3 font-display text-xl font-bold uppercase tracking-wide">
           Predicciones {done && "y puntos"}
         </h2>
-        {preds.length === 0 ? (
+
+        {!started ? (
           <p className="rounded-xl border border-dashed border-line/50 p-6 text-center text-sm text-chalk/50">
-            Aún no hay predicciones registradas para este partido.
+            🔒 Las predicciones se revelan cuando el partido inicie.
+          </p>
+        ) : preds.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-line/50 p-6 text-center text-sm text-chalk/50">
+            Nadie registró predicción para este partido.
           </p>
         ) : (
           <ul className="divide-y divide-line/30 overflow-hidden rounded-xl border border-line/40 bg-field/50">

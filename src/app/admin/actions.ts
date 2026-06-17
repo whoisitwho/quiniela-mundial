@@ -4,21 +4,20 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase";
-import { ADMIN_COOKIE, adminToken, requireAdmin } from "@/lib/auth";
+import { ADMIN_COOKIE, adminToken, isAdmin } from "@/lib/auth";
 
-// ── Sesión de admin (una sola contraseña compartida en ADMIN_PASSWORD) ──
+export type FormState = { ok: boolean; message: string };
 
+// ── Sesión de admin ──
 export async function login(formData: FormData) {
   const pass = String(formData.get("password") ?? "");
-  if (pass !== process.env.ADMIN_PASSWORD) {
-    redirect("/admin?error=1");
-  }
+  if (pass !== process.env.ADMIN_PASSWORD) redirect("/admin?error=1");
   cookies().set(ADMIN_COOKIE, adminToken(), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 60, // 60 días
+    maxAge: 60 * 60 * 24 * 60,
   });
   redirect("/admin");
 }
@@ -29,65 +28,74 @@ export async function logout() {
 }
 
 // ── Jugadores ──
-export async function addPlayer(formData: FormData) {
-  requireAdmin();
+export async function addPlayer(
+  _prev: FormState,
+  formData: FormData
+): Promise<FormState> {
+  if (!isAdmin()) return { ok: false, message: "No autorizado." };
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
-  await supabaseAdmin().from("players").insert({ name });
+  if (!name) return { ok: false, message: "Escribe un nombre." };
+  const { error } = await supabaseAdmin().from("players").insert({ name });
+  if (error) return { ok: false, message: "No se pudo (¿nombre repetido?)." };
   revalidatePath("/admin");
   revalidatePath("/tabla");
+  return { ok: true, message: `Jugador "${name}" agregado.` };
 }
 
 // ── Partidos ──
-export async function addMatch(formData: FormData) {
-  requireAdmin();
-  const payload = {
+export async function addMatch(
+  _prev: FormState,
+  formData: FormData
+): Promise<FormState> {
+  if (!isAdmin()) return { ok: false, message: "No autorizado." };
+  const home = String(formData.get("home_team") ?? "").trim();
+  const away = String(formData.get("away_team") ?? "").trim();
+  const kickoff = String(formData.get("kickoff_at") ?? "");
+  if (!home || !away || !kickoff)
+    return { ok: false, message: "Faltan datos del partido." };
+  const { error } = await supabaseAdmin().from("matches").insert({
     stage: String(formData.get("stage") ?? "Fase de grupos"),
-    home_team: String(formData.get("home_team") ?? "").trim(),
-    away_team: String(formData.get("away_team") ?? "").trim(),
-    kickoff_at: new Date(String(formData.get("kickoff_at"))).toISOString(),
-  };
-  if (!payload.home_team || !payload.away_team) return;
-  await supabaseAdmin().from("matches").insert(payload);
+    home_team: home,
+    away_team: away,
+    kickoff_at: new Date(kickoff).toISOString(),
+  });
+  if (error) return { ok: false, message: "No se pudo crear el partido." };
   revalidatePath("/");
   revalidatePath("/admin");
+  return { ok: true, message: `Partido ${home} vs ${away} creado.` };
 }
 
-// ── Predicciones (upsert: si ya existe, la actualiza) ──
-export async function addPrediction(formData: FormData) {
-  requireAdmin();
-  const row = {
-    match_id: String(formData.get("match_id")),
-    player_id: String(formData.get("player_id")),
-    pred_home: Number(formData.get("pred_home")),
-    pred_away: Number(formData.get("pred_away")),
-  };
-  await supabaseAdmin()
-    .from("predictions")
-    .upsert(row, { onConflict: "match_id,player_id" });
-  revalidatePath(`/partido/${row.match_id}`);
-  revalidatePath("/tabla");
-  revalidatePath("/admin");
-}
-
-// ── Captura de resultado (dispara el recálculo de puntos en las vistas) ──
-export async function setResult(formData: FormData) {
-  requireAdmin();
-  const matchId = String(formData.get("match_id"));
+// ── Captura de resultado (recalcula puntos automáticamente) ──
+export async function setResult(
+  _prev: FormState,
+  formData: FormData
+): Promise<FormState> {
+  if (!isAdmin()) return { ok: false, message: "No autorizado." };
+  const matchId = String(formData.get("match_id") ?? "");
+  const clear = formData.get("clear") === "1";
   const home = formData.get("home_score");
   const away = formData.get("away_score");
-  const clear = formData.get("clear") === "1";
+  if (!matchId) return { ok: false, message: "Elige un partido." };
+  if (!clear && (home === "" || away === "" || home === null || away === null))
+    return { ok: false, message: "Captura ambos marcadores." };
 
-  await supabaseAdmin()
+  const { error } = await supabaseAdmin()
     .from("matches")
     .update({
       home_score: clear ? null : Number(home),
       away_score: clear ? null : Number(away),
     })
     .eq("id", matchId);
+  if (error) return { ok: false, message: "No se pudo guardar el resultado." };
 
-  revalidatePath(`/partido/${matchId}`);
-  revalidatePath("/tabla");
   revalidatePath("/");
+  revalidatePath("/tabla");
+  revalidatePath(`/partido/${matchId}`);
   revalidatePath("/admin");
+  return {
+    ok: true,
+    message: clear
+      ? "Resultado borrado."
+      : `Resultado ${home}–${away} guardado y puntos recalculados.`,
+  };
 }

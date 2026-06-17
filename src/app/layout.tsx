@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Oswald, Inter } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
+import { getPlayerId } from "@/lib/playerAuth";
+import { logoutPlayer } from "./entrar/actions";
 
 const oswald = Oswald({ subsets: ["latin"], variable: "--font-display" });
 const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
@@ -16,11 +18,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const signedIn = Boolean(getPlayerId());
+
   return (
     <html lang="es" className={`${oswald.variable} ${inter.variable}`}>
       <body className="min-h-screen bg-pitch text-chalk antialiased">
         <header className="border-b border-line/40 bg-field/60 backdrop-blur">
-          <nav className="mx-auto flex max-w-3xl items-center gap-1 px-4 py-3">
+          <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-1 px-4 py-3">
             <Link
               href="/"
               className="mr-auto font-display text-xl font-bold uppercase tracking-wide"
@@ -29,7 +33,18 @@ export default function RootLayout({
             </Link>
             <NavLink href="/">Partidos</NavLink>
             <NavLink href="/tabla">Tabla</NavLink>
-            <NavLink href="/admin">Admin</NavLink>
+            {signedIn ? (
+              <>
+                <NavLink href="/mis-predicciones">Mis predicciones</NavLink>
+                <form action={logoutPlayer}>
+                  <button className="rounded-md px-3 py-1.5 text-sm font-medium uppercase tracking-wide text-chalk/50 transition hover:text-amber">
+                    Salir
+                  </button>
+                </form>
+              </>
+            ) : (
+              <NavLink href="/entrar">Entrar</NavLink>
+            )}
           </nav>
         </header>
         <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>

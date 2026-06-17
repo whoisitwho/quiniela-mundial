@@ -4,6 +4,7 @@ export type Player = {
   id: string;
   name: string;
   created_at: string;
+  pin_hash?: string | null;
 };
 
 export type Match = {
