@@ -11,7 +11,11 @@ export type FormState = { ok: boolean; message: string };
 // ── Sesión de admin ──
 export async function login(formData: FormData) {
   const pass = String(formData.get("password") ?? "");
-  if (pass !== process.env.ADMIN_PASSWORD) redirect("/admin?error=1");
+  if (pass !== process.env.ADMIN_PASSWORD) {
+    // Frena ataques de fuerza bruta: cada intento fallido tarda ~1.5s.
+    await new Promise((r) => setTimeout(r, 1500));
+    redirect("/admin?error=1");
+  }
   cookies().set(ADMIN_COOKIE, adminToken(), {
     httpOnly: true,
     sameSite: "lax",
@@ -98,4 +102,20 @@ export async function setResult(
       ? "Resultado borrado."
       : `Resultado ${home}–${away} guardado y puntos recalculados.`,
   };
+}
+
+// ── Borrar una predicción (solo admin, para corregir errores) ──
+export async function deletePrediction(formData: FormData) {
+  if (!isAdmin()) return;
+  const id = String(formData.get("id") ?? "");
+  const matchId = String(formData.get("match_id") ?? "");
+  const UUID =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (UUID.test(id)) {
+    await supabaseAdmin().from("predictions").delete().eq("id", id);
+    revalidatePath("/tabla");
+    if (UUID.test(matchId)) revalidatePath(`/partido/${matchId}`);
+  }
+  // Regresa a la misma vista de predicciones del partido.
+  redirect(`/admin?match=${matchId}`);
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMatch, getMatchPredictions } from "@/lib/queries";
 import { isFinished } from "@/lib/types";
+import { Flag } from "@/components/Flag";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ export default async function MatchPage({
   if (!match) notFound();
 
   const done = isFinished(match);
+  const homeWin = done && (match.home_score ?? 0) > (match.away_score ?? 0);
+  const awayWin = done && (match.away_score ?? 0) > (match.home_score ?? 0);
   const started = new Date(match.kickoff_at).getTime() <= Date.now();
   // Las predicciones se revelan SOLO cuando el partido ya inició.
   const preds = started ? await getMatchPredictions(params.id) : [];
@@ -37,18 +40,43 @@ export default async function MatchPage({
         <p className="text-xs uppercase tracking-widest text-amber/80">
           {match.stage}
         </p>
-        <div className="mt-3 flex items-center justify-center gap-4">
-          <span className="flex-1 text-right font-display text-2xl font-bold">
-            {match.home_team}
-          </span>
+        <div className="mt-4 flex items-center justify-center gap-4">
+          <div
+            className={`flex flex-1 flex-col items-center gap-2 ${winnerCls(
+              done,
+              homeWin
+            )}`}
+          >
+            <Flag team={match.home_team} className="h-9 w-12" />
+            <span className="font-display text-xl font-bold leading-tight">
+              {match.home_team}
+            </span>
+          </div>
           <span className="scoreboard rounded-lg bg-pitch px-4 py-2 text-3xl font-bold text-amber">
             {done ? `${match.home_score}–${match.away_score}` : "vs"}
           </span>
-          <span className="flex-1 text-left font-display text-2xl font-bold">
-            {match.away_team}
-          </span>
+          <div
+            className={`flex flex-1 flex-col items-center gap-2 ${winnerCls(
+              done,
+              awayWin
+            )}`}
+          >
+            <Flag team={match.away_team} className="h-9 w-12" />
+            <span className="font-display text-xl font-bold leading-tight">
+              {match.away_team}
+            </span>
+          </div>
         </div>
-        <p className="mt-3 text-xs text-chalk/50">
+        {done && (
+          <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-led">
+            {homeWin
+              ? `Ganó ${match.home_team}`
+              : awayWin
+              ? `Ganó ${match.away_team}`
+              : "Empate"}
+          </p>
+        )}
+        <p className="mt-2 text-xs text-chalk/50">
           {fmt.format(new Date(match.kickoff_at))}
         </p>
       </section>
@@ -86,8 +114,12 @@ export default async function MatchPage({
   );
 }
 
-function PointsBadge({ points }: { points: number | null }) {
-  const styles =
+function winnerCls(done: boolean, isWinner: boolean) {
+  if (!done) return "text-chalk";
+  return isWinner ? "text-led" : "text-chalk/40";
+}
+
+function PointsBadge({ points }: { points: number | null }) {  const styles =
     points === 3
       ? "bg-led/20 text-led"
       : points === 1

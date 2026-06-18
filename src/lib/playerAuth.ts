@@ -40,6 +40,10 @@ export function clearPlayerCookie() {
   cookies().delete(PLAYER_COOKIE);
 }
 
+// Valida que un texto sea un UUID con formato correcto.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Devuelve el id del jugador si la cookie es válida, o null.
 export function getPlayerId(): string | null {
   const raw = cookies().get(PLAYER_COOKIE)?.value;
@@ -48,5 +52,6 @@ export function getPlayerId(): string | null {
   if (i < 0) return null;
   const id = raw.slice(0, i);
   const sig = raw.slice(i + 1);
-  return sign(id) === sig ? id : null;
+  if (!id || sign(id) !== sig || !UUID_RE.test(id)) return null;
+  return id;
 }

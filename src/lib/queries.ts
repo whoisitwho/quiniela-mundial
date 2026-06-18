@@ -7,6 +7,9 @@ import type {
   PredictionWithPoints,
 } from "./types";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ── Lecturas públicas (anon): partidos, jugadores, tabla ──
 
 export async function getMatches(): Promise<Match[]> {
@@ -19,6 +22,7 @@ export async function getMatches(): Promise<Match[]> {
 }
 
 export async function getMatch(id: string): Promise<Match | null> {
+  if (!id || !UUID_RE.test(id)) return null;
   const { data, error } = await supabase
     .from("matches")
     .select("*")
@@ -50,6 +54,7 @@ export async function getLeaderboard(): Promise<LeaderboardRow[]> {
 export async function getMatchPredictions(
   matchId: string
 ): Promise<PredictionWithPoints[]> {
+  if (!matchId || !UUID_RE.test(matchId)) return [];
   const { data, error } = await supabaseAdmin()
     .from("prediction_points")
     .select("*, player:players(name)")
@@ -63,6 +68,7 @@ export async function getMatchPredictions(
 }
 
 export async function getPlayerById(id: string): Promise<Player | null> {
+  if (!id || !UUID_RE.test(id)) return null;
   const { data, error } = await supabaseAdmin()
     .from("players")
     .select("id, name, created_at")
@@ -75,6 +81,7 @@ export async function getPlayerById(id: string): Promise<Player | null> {
 export async function getPlayerPredictions(
   playerId: string
 ): Promise<Prediction[]> {
+  if (!playerId || !UUID_RE.test(playerId)) return [];
   const { data, error } = await supabaseAdmin()
     .from("predictions")
     .select("*")

@@ -1,6 +1,6 @@
-import { getMatches, getPlayers } from "@/lib/queries";
+import { getMatches, getPlayers, getMatchPredictions } from "@/lib/queries";
 import { isAdmin } from "@/lib/auth";
-import { login, logout } from "./actions";
+import { login, logout, deletePrediction } from "./actions";
 import { PlayerForm, MatchForm, ResultForm } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ const btnCls =
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: { error?: string };
+  searchParams: { error?: string; match?: string };
 }) {
   if (!isAdmin()) {
     return (
@@ -41,6 +41,9 @@ export default async function AdminPage({
   }
 
   const [players, matches] = await Promise.all([getPlayers(), getMatches()]);
+  const selectedMatch = searchParams.match ?? "";
+  const preds = selectedMatch ? await getMatchPredictions(selectedMatch) : [];
+  const selMatchObj = matches.find((m) => m.id === selectedMatch);
 
   return (
     <div className="space-y-10">
@@ -66,6 +69,67 @@ export default async function AdminPage({
 
       <Panel title="Capturar resultado final">
         <ResultForm matches={matches} />
+      </Panel>
+
+      <Panel title="Ver / borrar predicciones">
+        <form method="get" className="flex gap-2">
+          <select
+            name="match"
+            defaultValue={selectedMatch}
+            className={inputCls}
+          >
+            <option value="">Elige un partido…</option>
+            {matches.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.home_team} vs {m.away_team}
+              </option>
+            ))}
+          </select>
+          <button className={btnCls}>Ver</button>
+        </form>
+
+        {selectedMatch && (
+          <div className="mt-4">
+            <p className="mb-2 text-sm text-chalk/60">
+              {selMatchObj
+                ? `${selMatchObj.home_team} vs ${selMatchObj.away_team}`
+                : "Partido"}{" "}
+              · {preds.length} predicción(es)
+            </p>
+            {preds.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-line/50 p-4 text-center text-sm text-chalk/40">
+                Nadie ha pronosticado este partido.
+              </p>
+            ) : (
+              <ul className="divide-y divide-line/30 overflow-hidden rounded-lg border border-line/40 bg-pitch/40">
+                {preds.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-center gap-3 px-3 py-2"
+                  >
+                    <span className="flex-1 truncate text-sm">
+                      {p.player?.name ?? "—"}
+                    </span>
+                    <span className="scoreboard text-sm text-chalk/80">
+                      {p.pred_home}–{p.pred_away}
+                    </span>
+                    <form action={deletePrediction}>
+                      <input type="hidden" name="id" value={p.id} />
+                      <input type="hidden" name="match_id" value={selectedMatch} />
+                      <button className="rounded-md bg-red-500/15 px-2 py-1 text-xs font-medium text-red-300 transition hover:bg-red-500/25">
+                        Borrar
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs text-chalk/40">
+              Úsalo solo para corregir errores. Los jugadores no pueden borrar
+              sus propias predicciones.
+            </p>
+          </div>
+        )}
       </Panel>
 
       <p className="text-xs text-chalk/40">
