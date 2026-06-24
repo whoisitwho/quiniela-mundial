@@ -33,6 +33,7 @@ export default function RootLayout({
             </Link>
             <NavLink href="/">Partidos</NavLink>
             <NavLink href="/tabla">Tabla</NavLink>
+            <NavLink href="/progreso">Progreso</NavLink>
             {signedIn ? (
               <>
                 <NavLink href="/mis-predicciones">Mis predicciones</NavLink>

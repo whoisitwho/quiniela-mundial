@@ -89,3 +89,21 @@ export async function getPlayerPredictions(
   if (error) throw error;
   return data ?? [];
 }
+
+// Datos crudos para la gráfica de progreso (solo servidor).
+export async function getProgressRaw() {
+  const db = supabaseAdmin();
+  const [matchesRes, playersRes, pointsRes] = await Promise.all([
+    db
+      .from("matches")
+      .select("id, home_team, away_team, kickoff_at, home_score, away_score")
+      .order("kickoff_at", { ascending: true }),
+    db.from("players").select("id, name"),
+    db.from("prediction_points").select("match_id, player_id, points"),
+  ]);
+  return {
+    matches: matchesRes.data ?? [],
+    players: playersRes.data ?? [],
+    points: pointsRes.data ?? [],
+  };
+}
