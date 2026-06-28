@@ -48,7 +48,8 @@ const NAME_TO_ES: Record<string, string> = {
 };
 
 // Fase de football-data → texto en español para el campo stage.
-const STAGE_TO_ES: Record<string, string> = {
+const KNOCKOUT_STAGES: Record<string, string> = {
+  LAST_32: "Dieciseisavos de final",
   LAST_16: "Octavos de final",
   QUARTER_FINALS: "Cuartos de final",
   SEMI_FINALS: "Semifinal",
@@ -94,14 +95,16 @@ export async function fetchWorldCupMatches(token: string): Promise<SyncMatch[]> 
   return matches.map((m: any): SyncMatch => {
     const ft = m?.score?.fullTime ?? {};
     const stage = String(m?.stage ?? "");
+    // Cualquier fase que no sea de grupos es eliminatoria.
+    const isKnockout = stage !== "" && stage !== "GROUP_STAGE";
     return {
       homeEs: teamToEs(m?.homeTeam),
       awayEs: teamToEs(m?.awayTeam),
       homeScore: typeof ft.home === "number" ? ft.home : null,
       awayScore: typeof ft.away === "number" ? ft.away : null,
       finished: m?.status === "FINISHED",
-      isKnockout: stage in STAGE_TO_ES,
-      stageEs: STAGE_TO_ES[stage] ?? "Fase de grupos",
+      isKnockout,
+      stageEs: KNOCKOUT_STAGES[stage] ?? (isKnockout ? "Eliminatoria" : "Fase de grupos"),
       utcDate: String(m?.utcDate ?? ""),
       rawHome: String(m?.homeTeam?.name ?? "?"),
       rawAway: String(m?.awayTeam?.name ?? "?"),

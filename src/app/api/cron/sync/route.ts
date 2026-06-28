@@ -67,20 +67,28 @@ export async function GET(req: Request) {
   };
 
   for (const am of apiMatches) {
-    if (!am.finished) continue; // solo partidos terminados
     report.revisados++;
 
-    // Si algún equipo no se reconoció, se reporta para revisión manual.
+    // Equipos aún sin definir (eliminatoria por jugarse con plazas TBD):
+    // se ignoran en silencio hasta que la API los resuelva.
     if (!am.homeEs || !am.awayEs) {
-      report.sin_emparejar.push(`${am.rawHome} vs ${am.rawAway} (nombre no reconocido)`);
+      if (am.finished) {
+        // Un partido terminado con nombre no reconocido sí se reporta.
+        report.sin_emparejar.push(
+          `${am.rawHome} vs ${am.rawAway} (nombre no reconocido)`
+        );
+      }
       continue;
     }
 
-    const label = `${am.homeEs} ${am.homeScore}-${am.awayScore} ${am.awayEs}`;
+    const label = `${am.homeEs}${
+      am.finished ? ` ${am.homeScore}-${am.awayScore}` : ""
+    } ${am.awayEs}`;
     const candidates = index.get(pairKey(am.homeEs, am.awayEs)) ?? [];
 
     if (candidates.length > 0) {
-      // Toma el primero sin marcador (no pisa correcciones manuales).
+      // Ya existe en la BD: solo actualiza marcador si terminó y está vacío.
+      if (!am.finished) continue;
       const target = candidates.find(
         (c) => c.home_score === null || c.away_score === null
       );
@@ -88,7 +96,6 @@ export async function GET(req: Request) {
         report.ya_tenian_marcador++;
         continue;
       }
-      // Asigna el marcador respetando quién es local en NUESTRA base.
       const homeIsApiHome = target.home_team === am.homeEs;
       await db
         .from("matches")
@@ -99,17 +106,18 @@ export async function GET(req: Request) {
         .eq("id", target.id);
       report.actualizados.push(label);
     } else if (am.isKnockout) {
-      // Partido de eliminatoria que aún no existe: se crea.
+      // Partido de eliminatoria que aún no existe: se crea (con o sin marcador).
+      // Así los jugadores pueden pronosticarlo antes de que se juegue.
       await db.from("matches").insert({
         stage: am.stageEs,
         home_team: am.homeEs,
         away_team: am.awayEs,
         kickoff_at: am.utcDate,
-        home_score: am.homeScore,
-        away_score: am.awayScore,
+        home_score: am.finished ? am.homeScore : null,
+        away_score: am.finished ? am.awayScore : null,
       });
       report.creados.push(`${label} [${am.stageEs}]`);
-    } else {
+    } else if (am.finished) {
       // Grupo terminado que no se encontró: probable desajuste de nombre.
       report.sin_emparejar.push(`${label} (no existe en la BD)`);
     }
